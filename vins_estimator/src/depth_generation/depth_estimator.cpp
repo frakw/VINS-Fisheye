@@ -6,8 +6,6 @@
 #include <opencv2/opencv.hpp>
 #include "../utility/tic_toc.h"
 #include "../estimator/parameters.h"
-#define SAVE_TO_FILE
-// #define FORCE_CPU_SBGM
 
 DepthEstimator::DepthEstimator(SGMParams _params, Eigen::Vector3d t01, Eigen::Matrix3d R01, cv::Mat camera_mat,
 bool _show, bool _enable_extrinsic_calib, std::string _output_path):
@@ -18,7 +16,7 @@ bool _show, bool _enable_extrinsic_calib, std::string _output_path):
     cv::eigen2cv(t01, T);
 
 
-#ifndef WITHOUT_CUDA
+#ifdef USE_CUDA
     if (!params.use_vworks) {
     	sgmp = new sgm::LibSGMWrapper(params.num_disp, params.p1, params.p2, params.uniquenessRatio, true, 
             sgm::PathType::SCAN_8PATH, params.min_disparity, params.disp12Maxdiff);
@@ -50,7 +48,13 @@ bool _show, bool _enable_extrinsic_calib, std::string _output_path):
     
 
 cv::Mat DepthEstimator::ComputeDispartiyMap(cv::cuda::GpuMat & left, cv::cuda::GpuMat & right) {
-    
+#ifdef USE_CUDA
+    // stereoRectify(InputArray cameraMatrix1, InputArray distCoeffs1, 
+    // InputArray cameraMatrix2, InputArray distCoeffs2, 
+    //Size imageSize, InputArray R, InputArray T, OutputArray R1, OutputArray R2, OutputArray P1, OutputArray P2, 
+    //OutputArray Q,
+    //  int flags=CALIB_ZERO_DISPARITY, double alpha=-1, 
+    // Size newImageSize=Size(), Rect* validPixROI1=0, Rect* validPixROI2=0 )¶
     if (first_init) {
         cv::Mat _Q;
         cv::Size imgSize = left.size();
@@ -64,50 +68,21 @@ cv::Mat DepthEstimator::ComputeDispartiyMap(cv::cuda::GpuMat & left, cv::cuda::G
                                 _map12);
         initUndistortRectifyMap(cameraMatrix, cv::Mat(), R2, P2, imgSize, CV_32FC1, _map21,
                                 _map22);
-#ifndef WITHOUT_CUDA
         map11.upload(_map11);
         map12.upload(_map12);
         map21.upload(_map21);
         map22.upload(_map22);
-#endif
+
         _Q.convertTo(Q, CV_32F);
 
         first_init = false;
     } 
 
-#ifdef FORCE_CPU_SBGM
-    cv::Mat _left;
-    cv::Mat _right;
-    left.download(_left);
-    right.download(_right);
-    return ComputeDispartiyMap(_left, _right);
-#endif
-
-#ifndef WITHOUT_CUDA
-    // stereoRectify(InputArray cameraMatrix1, InputArray distCoeffs1, 
-    // InputArray cameraMatrix2, InputArray distCoeffs2, 
-    //Size imageSize, InputArray R, InputArray T, OutputArray R1, OutputArray R2, OutputArray P1, OutputArray P2, 
-    //OutputArray Q,
-    //  int flags=CALIB_ZERO_DISPARITY, double alpha=-1, 
-    // Size newImageSize=Size(), Rect* validPixROI1=0, Rect* validPixROI2=0 )¶
-   
 
     cv::cuda::GpuMat leftRectify, rightRectify;
     TicToc remap;
     cv::cuda::remap(left, leftRectify, map11, map12, cv::INTER_LINEAR);
     cv::cuda::remap(right, rightRectify, map21, map22, cv::INTER_LINEAR);
-
-#ifdef SAVE_TO_FILE
-    cv::Mat _l, _r;
-    leftRectify.download(_l);
-    rightRectify.download(_r);
-    
-    cv::imwrite(OUTPUT_FOLDER+"/deep_l.jpg",_l);
-    cv::imwrite(OUTPUT_FOLDER+"/deep_r.jpg",_r);
-#endif
-    cv::cuda::normalize(leftRectify, leftRectify, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-    cv::cuda::normalize(rightRectify, rightRectify, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-
     if(ENABLE_PERF_OUTPUT) {
         ROS_INFO("Depth rectify cost %fms", remap.toc());
     }
@@ -126,8 +101,9 @@ cv::Mat DepthEstimator::ComputeDispartiyMap(cv::cuda::GpuMat & left, cv::cuda::G
 
         if (show) {
             cv::Mat disparity_color, disp;
-    	    disparity.convertTo(disp, CV_8U, 255. / params.num_disp/16);
-            cv::applyColorMap(disp, disparity_color, cv::COLORMAP_RAINBOW);
+    	    disparity.convertTo(disp, CV_8U, 255. / params.num_disp);
+
+            cv::applyColorMap(disp, disparity_color, cv::COLORMAP_JET);
 	        disparity.setTo(0, mask);
 	        disparity_color.setTo(cv::Scalar(0, 0, 0), mask);
 
@@ -279,28 +255,36 @@ cv::Mat DepthEstimator::ComputeDispartiyMap(cv::Mat & left, cv::Mat & right) {
     cv::remap(left, leftRectify, _map11, _map12, cv::INTER_LINEAR);
     cv::remap(right, rightRectify, _map21, _map22, cv::INTER_LINEAR);
 
-    auto sgbm = cv::StereoSGBM::create(params.min_disparity, params.num_disp, params.block_size,
-        params.p1, params.p2, params.disp12Maxdiff, params.prefilterCap, params.uniquenessRatio, params.speckleWindowSize, 
-        params.speckleRange, params.mode);
+    if (!params.use_vworks) {
+        cv::Mat & left_rect = leftRectify;
+        cv::Mat & right_rect = rightRectify;
+        cv::Mat disparity;
+        
+        auto sgbm = cv::StereoSGBM::create(params.min_disparity, params.num_disp, params.block_size,
+            params.p1, params.p2, params.disp12Maxdiff, params.prefilterCap, params.uniquenessRatio, params.speckleWindowSize, 
+            params.speckleRange, params.mode);
 
-    // sgbm->compute(right_rect, left_rect, disparity);
-    sgbm->compute(leftRectify, rightRectify, disparity);
-    ROS_INFO("CPU SGBM time cost %fms", tic.toc());
-    if (show) {
-        cv::Mat disparity_color, disp;
-        disparity.convertTo(disp, CV_8U, 255. / params.num_disp/16);
-        cv::applyColorMap(disp, disparity_color, cv::COLORMAP_RAINBOW);
+        // sgbm->compute(right_rect, left_rect, disparity);
+        sgbm->compute(left_rect, right_rect, disparity);
 
-        cv::Mat _show;
+        ROS_INFO("CPU SGBM time cost %fms", tic.toc());
+        if (show) {
+            cv::Mat _show;
+            cv::Mat raw_disp_map = disparity.clone();
+            cv::Mat scaled_disp_map;
+            double min_val, max_val;
+            cv::minMaxLoc(raw_disp_map, &min_val, &max_val, NULL, NULL);
+            raw_disp_map.convertTo(scaled_disp_map, CV_8U, 255/(max_val-min_val), -min_val/(max_val-min_val));
 
-        cv::hconcat(leftRectify, rightRectify, _show);
-        cv::cvtColor(_show, _show, cv::COLOR_GRAY2BGR);
-        cv::hconcat(_show, disparity_color, _show);
-
-        cv::imshow("RAW DISP", _show);
-        cv::waitKey(2);
+            cv::hconcat(left_rect, right_rect, _show);
+            cv::hconcat(_show, scaled_disp_map, _show);
+            // cv::hconcat(left_rect, right_rect, _show);
+            // cv::hconcat(_show, scaled_disp_map, _show);
+            cv::imshow("raw_disp_map", _show);
+            cv::waitKey(2);
+        }
+        return disparity;
     }
-    return disparity;
 }
 
 

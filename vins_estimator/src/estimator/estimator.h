@@ -52,11 +52,13 @@ class Estimator
     void initFirstPose(Eigen::Vector3d p, Eigen::Matrix3d r);
     void inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity);
     void inputFeature(double t, const FeatureFrame &featureFrame);
-    void inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
+    void inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), 
+        const CvImages & up_imgs = CvImages(0), 
+        const CvImages & down_imgs = CvImages(0));
 
     bool is_next_odometry_frame();
     void inputFisheyeImage(double t, const CvCudaImages & up_imgs, const CvCudaImages & down_imgs, bool is_blank_init = false);
-    void inputFisheyeImage(double t, const CvImages & fisheye_imgs_up, const CvImages & fisheye_imgs_down);
+
     void processIMU(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity);
     void processImage(const FeatureFrame &image, const double header);
     void processMeasurements();
@@ -113,7 +115,7 @@ class Estimator
     std::thread processThread;
     std::thread depthThread;
 
-    FeatureTracker::BaseFeatureTracker * featureTracker = nullptr;
+    FeatureTracker featureTracker;
 
     SolverFlag solver_flag;
     MarginalizationFlag  marginalization_flag;
@@ -133,7 +135,7 @@ class Estimator
     Vector3d back_P0, last_P, last_P0;
     double Headers[(WINDOW_SIZE + 1)];
 
-    IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)] = {0};
+    IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];
     Vector3d acc_0, gyr_0;
 
     vector<double> dt_buf[(WINDOW_SIZE + 1)];
@@ -145,8 +147,6 @@ class Estimator
     int inputImageCnt;
     float sum_t_feature;
     int begin_time_count;
-    int mea_track_count = 0;
-    double mea_sum_time = 0;
 
     FeatureManager f_manager;
     MotionEstimator m_estimator;
@@ -174,11 +174,11 @@ class Estimator
 
     int loop_window_index;
 
-    MarginalizationInfo *last_marginalization_info = nullptr;
+    MarginalizationInfo *last_marginalization_info;
     vector<double *> last_marginalization_parameter_blocks;
 
     map<double, ImageFrame> all_image_frame;
-    IntegrationBase *tmp_pre_integration = nullptr;
+    IntegrationBase *tmp_pre_integration;
 
     Eigen::Vector3d initP;
     Eigen::Matrix3d initR;

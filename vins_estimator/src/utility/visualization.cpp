@@ -12,7 +12,6 @@
 #include <sensor_msgs/PointCloud.h>
 #include <vins/FlattenImages.h>
 #include "cv_bridge/cv_bridge.h"
-#include "../utility/ros_utility.h"
 
 using namespace ros;
 using namespace Eigen;
@@ -32,7 +31,6 @@ ros::Publisher pub_keyframe_point;
 ros::Publisher pub_extrinsic;
 ros::Publisher pub_viokeyframe;
 ros::Publisher pub_viononkeyframe;
-ros::Publisher pub_bias;
 
 CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 static double sum_of_path = 0;
@@ -48,8 +46,8 @@ void registerPub(ros::NodeHandle &n)
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("margin_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
-    pub_camera_pose = n.advertise<geometry_msgs::PoseStamped>("camera_pose", 1000);
-    pub_camera_pose_right = n.advertise<geometry_msgs::PoseStamped>("camera_pose_right", 1000);
+    pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
+    pub_camera_pose_right = n.advertise<nav_msgs::Odometry>("camera_pose_right", 1000);
     pub_rectify_pose_left = n.advertise<geometry_msgs::PoseStamped>("rectify_pose_left", 1000);
     pub_rectify_pose_right = n.advertise<geometry_msgs::PoseStamped>("rectify_pose_right", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
@@ -59,25 +57,106 @@ void registerPub(ros::NodeHandle &n)
     pub_viokeyframe = n.advertise<vins::VIOKeyframe>("viokeyframe", 1000);
     pub_viononkeyframe = n.advertise<vins::VIOKeyframe>("viononkeyframe", 1000);
     pub_flatten_images = n.advertise<vins::FlattenImages>("flatten_images", 1000);
-    pub_bias = n.advertise<sensor_msgs::Imu>("imu_bias", 1000);
 
     cameraposevisual.setScale(0.1);
     cameraposevisual.setLineWidth(0.01);
 }
 
 
-void pubIMUBias(const Eigen::Vector3d &Ba, const Eigen::Vector3d Bg, const std_msgs::Header &header) {
-    sensor_msgs::Imu bias;
-    bias.header = header;
-    bias.linear_acceleration.x = Ba.x();
-    bias.linear_acceleration.y = Ba.y();
-    bias.linear_acceleration.z = Ba.z();
+geometry_msgs::Pose pose_from_PQ(Eigen::Vector3d P, 
+    const Eigen::Quaterniond & Q) {
+    geometry_msgs::Pose pose;
+    pose.position.x = P.x();
+    pose.position.y = P.y();
+    pose.position.z = P.z();
+    pose.orientation.x = Q.x();
+    pose.orientation.y = Q.y();
+    pose.orientation.z = Q.z();
+    pose.orientation.w = Q.w();
+    return pose;
+}
 
-    bias.angular_velocity.x = Ba.x();
-    bias.angular_velocity.y = Ba.y();
-    bias.angular_velocity.z = Ba.z();
 
-    pub_bias.publish(bias);
+void pubFlattenImages(const Estimator &estimator, const std_msgs::Header &header, 
+    const Eigen::Vector3d & P, const Eigen::Quaterniond & Q, 
+    std::vector<cv::cuda::GpuMat> & up_images, std::vector<cv::cuda::GpuMat> & down_images) {
+    vins::FlattenImages images;
+    images.header = header;
+    images.pose_drone.position.x = P.x();
+    images.pose_drone.position.y = P.y();
+    images.pose_drone.position.z = P.z();
+    images.pose_drone.orientation.x = Q.x();
+    images.pose_drone.orientation.y = Q.y();
+    images.pose_drone.orientation.z = Q.z();
+    images.pose_drone.orientation.w = Q.w();
+    static Eigen::Quaterniond t_left = Eigen::Quaterniond(Eigen::AngleAxisd(-M_PI / 2, Eigen::Vector3d(1, 0, 0)));
+    static Eigen::Quaterniond t_front = t_left * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
+    static Eigen::Quaterniond t_down = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d(1, 0, 0)));
+
+    images.extrinsic_up_cams.push_back(
+        pose_from_PQ(estimator.tic[0], Eigen::Quaterniond(estimator.ric[0])*t_front)
+    );
+
+    images.extrinsic_down_cams.push_back(
+        pose_from_PQ(estimator.tic[1], Eigen::Quaterniond(estimator.ric[1])*t_down*t_front)
+    );
+
+    cv::Mat up, down;
+    up_images[2].download(up);
+    down_images[2].download(down);
+    cv_bridge::CvImage outImg;
+    outImg.header = header;
+    outImg.encoding = "bgr8";
+    outImg.image = up;
+    images.up_cams.push_back(*outImg.toImageMsg());
+
+    outImg.image = down;
+    images.down_cams.push_back(*outImg.toImageMsg());
+
+    pub_flatten_images.publish(images);
+}
+
+void pubFlattenImages(const Estimator &estimator, const std_msgs::Header &header, 
+    const Eigen::Vector3d & P, const Eigen::Quaterniond & Q, 
+    std::vector<cv::Mat> & up_images, std::vector<cv::Mat> & down_images) {
+    vins::FlattenImages images;
+    images.header = header;
+    images.pose_drone.position.x = P.x();
+    images.pose_drone.position.y = P.y();
+    images.pose_drone.position.z = P.z();
+    images.pose_drone.orientation.x = Q.x();
+    images.pose_drone.orientation.y = Q.y();
+    images.pose_drone.orientation.z = Q.z();
+    images.pose_drone.orientation.w = Q.w();
+    static Eigen::Quaterniond t_left = Eigen::Quaterniond(Eigen::AngleAxisd(-M_PI / 2, Eigen::Vector3d(1, 0, 0)));
+    static Eigen::Quaterniond t_front = t_left * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
+    static Eigen::Quaterniond t_right = t_front * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
+    static Eigen::Quaterniond t_down = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d(1, 0, 0)));
+
+    Eigen::Quaterniond t_arra[3] = {t_left, t_front, t_right};
+    static int count = 0;
+
+    int pub_index = count++ % 3 + 1;
+    images.extrinsic_up_cams.push_back(
+        pose_from_PQ(estimator.tic[0], Eigen::Quaterniond(estimator.ric[0])*t_arra[pub_index-1])
+    );
+
+    images.extrinsic_down_cams.push_back(
+        pose_from_PQ(estimator.tic[1], Eigen::Quaterniond(estimator.ric[1])*t_down*t_arra[pub_index-1])
+    );
+
+    cv::Mat &up = up_images[pub_index];
+    cv::Mat &down = down_images[pub_index];
+    cv_bridge::CvImage outImg;
+    outImg.header = header;
+    outImg.encoding = "bgr8";
+    outImg.image = up;
+    images.up_cams.push_back(*outImg.toImageMsg());
+
+    outImg.image = down;
+    images.down_cams.push_back(*outImg.toImageMsg());
+
+    pub_flatten_images.publish(images);
 }
 
 void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, double t)
@@ -139,6 +218,8 @@ void printStatistics(const Estimator &estimator, double t)
     sum_of_path += (estimator.Ps[WINDOW_SIZE] - last_path).norm();
     last_path = estimator.Ps[WINDOW_SIZE];
     ROS_DEBUG("sum of path %f", sum_of_path);
+    if (ESTIMATE_TD)
+        ROS_INFO("td %f", estimator.td);
 }
 
 void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
@@ -192,9 +273,8 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
               << estimator.Vs[WINDOW_SIZE].z() << "," << endl;
         foutC.close();
         Eigen::Vector3d tmp_T = estimator.Ps[WINDOW_SIZE];
-        printf("time: %f, kf: %d t: %5.3f %5.3f %5.3f q: %4.2f %4.2f %4.2f %4.2f td: %3.1fms backend_time: %.1fms\n", header.stamp.toSec(), !estimator.marginalization_flag,
-            tmp_T.x(), tmp_T.y(), tmp_T.z(),
-            tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z(), estimator.td*1000, estimator.mea_sum_time/estimator.mea_track_count);
+        printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.toSec(), tmp_T.x(), tmp_T.y(), tmp_T.z(),
+                                                          tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z());
 
         vins::VIOKeyframe vkf;
         vkf.header = header;
@@ -314,32 +394,32 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
         Vector3d P = estimator.Ps[i] + estimator.Rs[i] * estimator.tic[0];
         Quaterniond R = Quaterniond(estimator.Rs[i] * estimator.ric[0]);
 
-        geometry_msgs::PoseStamped odometry;
+        nav_msgs::Odometry odometry;
         odometry.header = header;
         odometry.header.frame_id = "world";
-        odometry.pose.position.x = P.x();
-        odometry.pose.position.y = P.y();
-        odometry.pose.position.z = P.z();
-        odometry.pose.orientation.x = R.x();
-        odometry.pose.orientation.y = R.y();
-        odometry.pose.orientation.z = R.z();
-        odometry.pose.orientation.w = R.w();
+        odometry.pose.pose.position.x = P.x();
+        odometry.pose.pose.position.y = P.y();
+        odometry.pose.pose.position.z = P.z();
+        odometry.pose.pose.orientation.x = R.x();
+        odometry.pose.pose.orientation.y = R.y();
+        odometry.pose.pose.orientation.z = R.z();
+        odometry.pose.pose.orientation.w = R.w();
 
         if(STEREO)
         {
             Vector3d P_r = estimator.Ps[i] + estimator.Rs[i] * estimator.tic[1];
             Quaterniond R_r = Quaterniond(estimator.Rs[i] * estimator.ric[1]);
 
-            geometry_msgs::PoseStamped odometry_r;
+            nav_msgs::Odometry odometry_r;
             odometry_r.header = header;
             odometry_r.header.frame_id = "world";
-            odometry_r.pose.position.x = P_r.x();
-            odometry_r.pose.position.y = P_r.y();
-            odometry_r.pose.position.z = P_r.z();
-            odometry_r.pose.orientation.x = R_r.x();
-            odometry_r.pose.orientation.y = R_r.y();
-            odometry_r.pose.orientation.z = R_r.z();
-            odometry_r.pose.orientation.w = R_r.w();
+            odometry_r.pose.pose.position.x = P_r.x();
+            odometry_r.pose.pose.position.y = P_r.y();
+            odometry_r.pose.pose.position.z = P_r.z();
+            odometry_r.pose.pose.orientation.x = R_r.x();
+            odometry_r.pose.pose.orientation.y = R_r.y();
+            odometry_r.pose.pose.orientation.z = R_r.z();
+            odometry_r.pose.pose.orientation.w = R_r.w();
             pub_camera_pose_right.publish(odometry_r);
             if(PUB_RECTIFY)
             {

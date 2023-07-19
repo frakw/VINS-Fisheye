@@ -152,5 +152,3 @@ class Utility
             two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
     };
 };
-
-

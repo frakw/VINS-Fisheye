@@ -2,7 +2,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#ifndef WITHOUT_CUDA
+#ifdef USE_CUDA
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudastereo.hpp>
 #include <opencv2/cudawarping.hpp>
@@ -12,7 +12,7 @@
 namespace cv {
 namespace cuda {
 #ifndef HAVE_OPENCV_CUDAIMGPROC
-// typedef cv::Mat GpuMat;
+typedef cv::Mat GpuMat;
 #endif
 };
 };
