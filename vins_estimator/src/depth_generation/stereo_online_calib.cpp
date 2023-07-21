@@ -324,7 +324,7 @@ bool StereoOnlineCalib::calibrate_extrincic(cv::cuda::GpuMat & left, cv::cuda::G
     filter_points_by_region(good_left, good_right);
     cv::Mat _show;
     left.download(_show);
-    cv::cvtColor(_show, _show, cv::COLOR_GRAY2BGR);
+    cv::cvtColor(_show, _show, CV_GRAY2BGR);
 
     std::map<int, cv::Scalar> region_colors;
     

@@ -2,7 +2,7 @@
 
 #common parameters
 #support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
-imu: 1         
+imu: 0         
 num_of_cam: 2
 
 is_fisheye: 1
@@ -15,8 +15,8 @@ output_path: "/home/jetson/VINS-Fisheye-Output"
 depth_config: "depth_cpu.yaml"
 cam0_calib: "imx219_camera_calib.yaml"
 cam1_calib: "imx219_camera_calib.yaml"
-image_width: 400 # For fisheye, this indicate the flattened image width; min 100; 300 - 500 is good for vins
-image_height: 200
+image_width: 820 # For fisheye, this indicate the flattened image width; min 100; 300 - 500 is good for vins
+image_height: 616
 show_width: 1080
 
 fisheye_fov: 235

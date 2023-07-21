@@ -229,8 +229,8 @@ void DepthCamManager::update_depth_image(int direction, cv::cuda::GpuMat _up_fro
     cv::Mat tmp;
     cv::Size size = up_front.size();
     if (_up_front.channels() == 3) {
-        cv::cvtColor(up_front, up_front, cv::COLOR_BGR2GRAY);
-        cv::cvtColor(down_front, down_front, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(up_front, up_front, CV_BGR2GRAY);
+        cv::cvtColor(down_front, down_front, CV_BGR2GRAY);
     }
 
 
@@ -312,8 +312,8 @@ void DepthCamManager::update_depth_image(int direction, cv::Mat _up_front, cv::M
     cv::Mat tmp;
     cv::Size size = up_front.size();
     if (_up_front.channels() == 3) {
-        cv::cvtColor(up_front, up_front, cv::COLOR_BGR2GRAY);
-        cv::cvtColor(down_front, down_front, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(up_front, up_front, CV_BGR2GRAY);
+        cv::cvtColor(down_front, down_front, CV_BGR2GRAY);
     }
 
 

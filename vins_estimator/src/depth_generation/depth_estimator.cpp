@@ -114,7 +114,7 @@ cv::Mat DepthEstimator::ComputeDispartiyMap(cv::cuda::GpuMat & left, cv::cuda::G
             // std::cout << "Size L" << left_rect.size() << " R" << right_rect.size() << "D" << disparity_color.size() << std::endl;
 
             cv::hconcat(left_rect, right_rect, _show);
-            cv::cvtColor(_show, _show, cv::COLOR_GRAY2BGR);
+            cv::cvtColor(_show, _show, CV_GRAY2BGR);
             cv::hconcat(_show, disparity_color, _show);
 
             cv::imshow("RAW DISP", _show);
@@ -197,14 +197,14 @@ cv::Mat DepthEstimator::ComputeDispartiyMap(cv::cuda::GpuMat & left, cv::cuda::G
             cv::minMaxLoc(cv_disp, &min_val, &max_val, NULL, NULL);
             // ROS_INFO("Min %f, max %f", min_val, max_val);
             cv_disp.convertTo(gray_disp, CV_8U, 1., 0);
-            cv::cvtColor(gray_disp, gray_disp, cv::COLOR_GRAY2BGR);
+            cv::cvtColor(gray_disp, gray_disp, CV_GRAY2BGR);
 
             cv::Mat _show, left_rect, right_rect;
             leftRectify.download(left_rect);
             rightRectify.download(right_rect);
     
             cv::hconcat(left_rect, right_rect, _show);
-            cv::cvtColor(_show, _show, cv::COLOR_GRAY2BGR);
+            cv::cvtColor(_show, _show, CV_GRAY2BGR);
             cv::hconcat(_show, gray_disp, _show);
             cv::hconcat(_show, color_disp, _show);
             char win_name[50] = {0};

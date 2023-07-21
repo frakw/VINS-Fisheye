@@ -42,7 +42,7 @@ std::vector<cv::Mat> convertCPUMat(const std::vector<cv::cuda::GpuMat> & arr) {
     for (const auto & mat:arr) {
         cv::Mat matcpu;
         mat.download(matcpu);
-        cv::cvtColor(matcpu, matcpu, cv::COLOR_GRAY2BGR);
+        cv::cvtColor(matcpu, matcpu, CV_GRAY2BGR);
         ret.push_back(matcpu);
     }
 
@@ -242,22 +242,22 @@ FeatureFrame FeatureTracker::trackImage_fisheye(double _cur_time,
 
     if (!up_top_img.empty() && up_top_img.channels() == 3) {
         std::cout << "CVT uptop" << std::endl;
-        cv::cuda::cvtColor(up_top_img, up_top_img, cv::COLOR_BGR2GRAY);
+        cv::cuda::cvtColor(up_top_img, up_top_img, CV_BGR2GRAY);
     }
 
     if (!down_top_img.empty() && down_top_img.channels() == 3) {
         std::cout << "CVT downtop" << std::endl;
-        cv::cuda::cvtColor(down_top_img, down_top_img, cv::COLOR_BGR2GRAY);
+        cv::cuda::cvtColor(down_top_img, down_top_img, CV_BGR2GRAY);
     }
 
     if (!up_side_img.empty() && up_side_img.channels() == 3) {
         std::cout << "CVT upside" << std::endl;
-        cv::cuda::cvtColor(up_side_img, up_side_img, cv::COLOR_BGR2GRAY);
+        cv::cuda::cvtColor(up_side_img, up_side_img, CV_BGR2GRAY);
     }
 
     if (!down_side_img.empty() && down_side_img.channels() == 3) {
         std::cout << "CVT downside" << std::endl;
-        cv::cuda::cvtColor(down_side_img, down_side_img, cv::COLOR_BGR2GRAY);
+        cv::cuda::cvtColor(down_side_img, down_side_img, CV_BGR2GRAY);
     }
 
     if (enable_up_top) {

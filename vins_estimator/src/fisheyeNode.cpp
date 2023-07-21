@@ -81,7 +81,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_up_imgs_cuda) {
                 cv::cuda::GpuMat gray;
                 if(!img.empty()) {
-                    cv::cuda::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+                    cv::cuda::cvtColor(img, gray, CV_BGR2GRAY);
                 }
                 fisheye_up_imgs_cuda_gray.push_back(gray);
             }
@@ -89,7 +89,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_down_imgs_cuda) {
                 cv::cuda::GpuMat gray;
                 if(!img.empty()) {
-                    cv::cuda::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+                    cv::cuda::cvtColor(img, gray, CV_BGR2GRAY);
                 }
 
                 fisheye_down_imgs_cuda_gray.push_back(gray);
@@ -121,7 +121,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_up_imgs) {
                 cv::Mat gray;
                 if(!img.empty()) {
-                    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+                    cv::cvtColor(img, gray, CV_BGR2GRAY);
                 }
                 fisheye_up_imgs_gray.push_back(gray);
             }
@@ -129,7 +129,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_down_imgs) {
                 cv::Mat gray;
                 if(!img.empty()) {
-                    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+                    cv::cvtColor(img, gray, CV_BGR2GRAY);
                 }
                 fisheye_down_imgs_gray.push_back(gray);
             }

@@ -78,7 +78,7 @@ public:
             img_cuda.upload(image);
         } else {
             cv::Mat _tmp;
-            cv::cvtColor(image, _tmp, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(image, _tmp, CV_BGR2GRAY);
             img_cuda.upload(_tmp);
         }
 
@@ -111,7 +111,7 @@ public:
             img_cuda.upload(image);
         } else {
             cv::Mat _tmp;
-            cv::cvtColor(image, _tmp, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(image, _tmp, CV_BGR2GRAY);
             img_cuda.upload(_tmp);
         }
 
@@ -145,7 +145,7 @@ public:
 
         } else {
             cv::Mat gray;
-            cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(image, gray, CV_BGR2GRAY);
 #pragma omp parallel for  num_threads(5)
             for (unsigned int i = 0; i < 5; i++) {
                 if (!disable[i]) {
@@ -185,8 +185,8 @@ public:
             }
         } else {
             cv::Mat gray1, gray2;
-            cv::cvtColor(image1, gray1, cv::COLOR_BGR2GRAY);
-            cv::cvtColor(image2, gray2, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(image1, gray1, CV_BGR2GRAY);
+            cv::cvtColor(image2, gray2, CV_BGR2GRAY);
 #pragma omp parallel for num_threads(10)
             for (unsigned int i = 0; i < 10; i++) {
                 if (!disable[i]) {

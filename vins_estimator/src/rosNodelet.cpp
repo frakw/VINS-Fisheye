@@ -149,7 +149,7 @@ class FisheyeFlattenHandler
                 for (auto & img: fisheye_up_imgs_cuda) {
                     cv::cuda::GpuMat gray;
                     if(!img.empty()) {
-                        cv::cuda::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+                        cv::cuda::cvtColor(img, gray, CV_BGR2GRAY);
                     }
                     fisheye_up_imgs_cuda_gray.push_back(gray);
                 }
@@ -157,7 +157,7 @@ class FisheyeFlattenHandler
                 for (auto & img: fisheye_down_imgs_cuda) {
                     cv::cuda::GpuMat gray;
                     if(!img.empty()) {
-                        cv::cuda::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+                        cv::cuda::cvtColor(img, gray, CV_BGR2GRAY);
                     }
 
                     fisheye_down_imgs_cuda_gray.push_back(gray);
