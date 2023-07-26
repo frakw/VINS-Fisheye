@@ -22,10 +22,10 @@ show_width: 1080
 fisheye_fov: 235
 
 enable_up_top: 1
-enable_down_top: 0
+enable_down_top: 1
 enable_up_side: 1
 enable_down_side: 1  
-enable_rear_side: 0
+enable_rear_side: 1
 thres_outlier : 5.0
 tri_max_err: 3.0
 # Extrinsic parameter between IMU and Camera.

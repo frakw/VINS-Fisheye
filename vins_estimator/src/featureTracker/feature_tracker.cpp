@@ -233,9 +233,18 @@ void FeatureTracker::detectPoints(const cv::Mat & img, const cv::Mat & mask, vec
  }
 
 void FeatureTracker::setup_feature_frame(FeatureFrame & ff, vector<int> ids, vector<cv::Point2f> cur_pts, vector<cv::Point3f> cur_un_pts, vector<cv::Point3f> cur_pts_vel, int camera_id) {
-    // ROS_INFO("Setup feature frame pts %ld un pts %ld vel %ld on Camera %d", cur_pts.size(), cur_un_pts.size(), cur_pts_vel.size(), camera_id);
+    ROS_INFO("Setup feature frame pts %ld un pts %ld vel %ld on Camera %d", cur_pts.size(), cur_un_pts.size(), cur_pts_vel.size(), camera_id);
     for (size_t i = 0; i < ids.size(); i++)
     {
+        /*
+        if (ids.size() != cur_pts.size() || ids.size() != cur_un_pts.size() || ids.size() != cur_pts_vel.size()) {
+            ROS_ERROR("Inconsistent vector sizes: ids: %zu, cur_pts: %zu, cur_un_pts: %zu, cur_pts_vel: %zu", 
+            ids.size(), cur_pts.size(), cur_un_pts.size(), cur_pts_vel.size());
+            return; // early return to avoid further processing
+        }
+        */
+        
+
         int feature_id = ids[i];
         double x, y ,z;
         x = cur_un_pts[i].x;

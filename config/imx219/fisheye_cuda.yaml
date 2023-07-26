@@ -2,30 +2,30 @@
 
 #common parameters
 #support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
-imu: 1         
+imu: 0    
 num_of_cam: 2
 
 is_fisheye: 1
-#imu_topic: "/dji_sdk_1/dji_sdk/imu"
+imu_topic: "/dji_sdk_1/dji_sdk/imu"
 # imu_topic: "/dji_sdk_1/dji_sdk/imu"
-image0_topic: "/rgb1"
-image1_topic: "/rgb2"
-output_path: "/home/xuhao/output"
+image0_topic: "/rgb1_sync"
+image1_topic: "/rgb2_sync"
+output_path: "/home/jetson/vins_fisheye_output"
 
 depth_config: "depth_cuda.yaml"
-cam0_calib: "imx219_camera_calib-1.yaml"
-cam1_calib: "imx219_camera_calib.yaml"
+cam0_calib: "imx219_camera_calib_1.yaml"
+cam1_calib: "imx219_camera_calib_0.yaml"
 image_width: 400 # For fisheye, this indicate the flattened image width; min 100; 300 - 500 is good for vins
 image_height: 200
 show_width: 1080
 
-fisheye_fov: 235
+fisheye_fov: 220
 
 enable_up_top: 1
-enable_down_top: 0
+enable_down_top: 1
 enable_up_side: 1
 enable_down_side: 1  
-enable_rear_side: 0
+enable_rear_side: 1
 thres_outlier : 5.0
 tri_max_err: 3.0
 # Extrinsic parameter between IMU and Camera.
@@ -112,12 +112,12 @@ gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.     #
 g_norm: 9.85         # gravity magnitude
 
 #unsynchronization parameters
-estimate_td: 1                      # online estimate time offset between camera and imu
+estimate_td: 1                    # online estimate time offset between camera and imu
 # td: -0.0736        #-0.0736 when use DJI IMU                       # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)#
 td: 0.014686 #Use mynteye imu
 #loop closure parameters
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
-pose_graph_save_path: "/home/xuhao/output/pose_graph/" # save and load path
+pose_graph_save_path: "/home/jetson/vins_fisheye_output" # save and load path
 save_image: 0                   # save image in pose graph for visualization prupose; you can close this function by setting 0 
 
 #rectify

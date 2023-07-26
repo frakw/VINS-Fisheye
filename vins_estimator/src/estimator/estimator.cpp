@@ -253,11 +253,13 @@ void Estimator::processDepthGeneration() {
                 mBuf.unlock();
             }
             //Use imu propaget for depth cloud, this is for realtime peformance;
-            while(!IMUAvailable(t + td)) {
-                printf("Depth wait for IMU ... \n");
-                std::chrono::milliseconds dura(5);
-                std::this_thread::sleep_for(dura);
-            }
+            if (USE_IMU) {
+                while(!IMUAvailable(t + td)) {
+                    printf("Depth wait for IMU ... \n");
+                    std::chrono::milliseconds dura(5);
+                    std::this_thread::sleep_for(dura);
+                }
+            } 
 
             TicToc tic;
             if (USE_GPU) {
