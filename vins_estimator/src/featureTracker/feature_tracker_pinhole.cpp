@@ -188,17 +188,6 @@ void PinholeFeatureTracker<CvMat>::setMask()
 
 
 template<class CvMat>
-void PinholeFeatureTracker<CvMat>::addPoints()
-{
-    for (auto &p : n_pts)
-    {
-        cur_pts.push_back(p);
-        ids.push_back(n_id++);
-        track_cnt.push_back(1);
-    }
-}
-
-template<class CvMat>
 void PinholeFeatureTracker<CvMat>::readIntrinsicParameter(const vector<string> &calib_file)
 {
     for (size_t i = 0; i < calib_file.size(); i++)

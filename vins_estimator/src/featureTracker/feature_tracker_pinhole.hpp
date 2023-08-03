@@ -78,4 +78,16 @@ bool PinholeFeatureTracker<CvMat>::inBorder(const cv::Point2f &pt) const
     int img_y = cvRound(pt.y);
     return BORDER_SIZE <= img_x && img_x < width - BORDER_SIZE && BORDER_SIZE <= img_y && img_y < height - BORDER_SIZE;
 }
+
+template<class CvMat>
+void PinholeFeatureTracker<CvMat>::addPoints()
+{
+    for (auto &p : n_pts)
+    {
+        cur_pts.push_back(p);
+        ids.push_back(n_id++);
+        track_cnt.push_back(1);
+    }
+}
+
 }
