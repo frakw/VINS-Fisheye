@@ -11,6 +11,8 @@
 #include "../utility/visualization.h"
 #include "../featureTracker/fisheye_undist.hpp"
 #include "../depth_generation/depth_camera_manager.h"
+#include "../featureTracker/feature_tracker_fisheye.hpp"
+#include "../featureTracker/feature_tracker_pinhole.hpp"
 
 Estimator::Estimator(): f_manager{Rs}
 {
@@ -25,11 +27,26 @@ Estimator::Estimator(): f_manager{Rs}
     // sum_t_feature = 0.0;
     // begin_time_count = 10;
     initFirstPoseFlag = false;
-    f_manager.ft = &featureTracker;
 }
 
 void Estimator::setParameter()
 {
+     if (FISHEYE) {
+        if (USE_GPU) {
+            featureTracker = new FeatureTracker::FisheyeFeatureTrackerCuda(this);
+        } else {
+            featureTracker = new FeatureTracker::FisheyeFeatureTrackerOpenMP(this);
+        }
+    } else {
+        if (USE_GPU) {
+            featureTracker = new FeatureTracker::PinholeFeatureTrackerCuda(this);
+        } else {
+            featureTracker = new FeatureTracker::PinholeFeatureTrackerCPU(this);
+        }
+    }
+
+    f_manager.ft = featureTracker;
+
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         tic[i] = TIC[i];
@@ -43,7 +60,8 @@ void Estimator::setParameter()
     td = TD;
     g = G;
     cout << "set g " << g.transpose() << endl;
-    featureTracker.readIntrinsicParameter(CAM_NAMES);
+    
+    featureTracker->readIntrinsicParameter(CAM_NAMES);
 
     processThread   = std::thread(&Estimator::processMeasurements, this);
     if (FISHEYE && ENABLE_DEPTH) {
@@ -51,9 +69,7 @@ void Estimator::setParameter()
     }
 }
 
-void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1, 
-        const CvImages & fisheye_imgs_up, 
-        const CvImages & fisheye_imgs_down)
+void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
 {
     static int img_track_count = 0;
     static double sum_time = 0;
@@ -61,18 +77,37 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1,
     FeatureFrame featureFrame;
     TicToc featureTrackerTime;
 
-    if (FISHEYE) {
-        featureFrame = featureTracker.trackImage_fisheye(t, fisheye_imgs_up, fisheye_imgs_down);
-    } else {
-        if(_img1.empty())
-            featureFrame = featureTracker.trackImage(t, _img);
-        else
-            featureFrame = featureTracker.trackImage(t, _img, _img1);
-    }
+    featureFrame = featureTracker->trackImage(t, _img, _img1);
 
     double dt = featureTrackerTime.toc();
     sum_time += dt;
     img_track_count ++;
+
+    if(inputImageCnt % 2 == 0)
+    {
+        mBuf.lock();
+        featureBuf.push(make_pair(t, featureFrame));
+        mBuf.unlock();
+    }
+}
+
+
+bool Estimator::is_next_odometry_frame() {
+    return (inputImageCnt % 2 == 1);
+}
+
+
+void Estimator::inputFisheyeImage(double t, const CvImages & fisheye_imgs_up, 
+        const CvImages & fisheye_imgs_down)
+{
+    static int img_track_count = 0;
+    static double sum_time = 0;
+    inputImageCnt++;
+    
+    FeatureFrame featureFrame;
+    TicToc featureTrackerTime;
+
+    featureFrame = featureTracker->trackImage(t, fisheye_imgs_up, fisheye_imgs_down);
 
     if(inputImageCnt % 2 == 0)
     {
@@ -85,11 +120,19 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1,
         }
         mBuf.unlock();
     }
-}
 
+    double dt = featureTrackerTime.toc();
 
-bool Estimator::is_next_odometry_frame() {
-    return (inputImageCnt % 2 == 1);
+    if (inputImageCnt > 100) {
+        sum_time += dt;
+        img_track_count ++;
+    }
+
+    if(ENABLE_PERF_OUTPUT) {
+        printf("featureTracker time: AVG %f NOW %f inputImageCnt %d Bufsize %ld imgs buf Size %ld\n", 
+            sum_time/img_track_count, dt, inputImageCnt, featureBuf.size(), fisheye_imgs_upBuf_cuda.size());
+    }
+   
 }
 
 void Estimator::inputFisheyeImage(double t, const CvCudaImages & fisheye_imgs_up_cuda, 
@@ -103,10 +146,13 @@ void Estimator::inputFisheyeImage(double t, const CvCudaImages & fisheye_imgs_up
     
     FeatureFrame featureFrame;
     TicToc featureTrackerTime;
-
-    featureFrame = featureTracker.trackImage_fisheye(t, fisheye_imgs_up_cuda, fisheye_imgs_down_cuda, is_blank_init);
+    
     if (is_blank_init) {
-        return;
+        featureFrame = ((FeatureTracker::FisheyeFeatureTrackerCuda*)featureTracker)->
+            trackImage_blank_init(t, fisheye_imgs_up_cuda, fisheye_imgs_down_cuda);
+            return;
+    } else {
+        featureFrame = featureTracker->trackImage(t, fisheye_imgs_up_cuda, fisheye_imgs_down_cuda);
     }
 
     if(inputImageCnt % 2 == 0)
@@ -128,8 +174,10 @@ void Estimator::inputFisheyeImage(double t, const CvCudaImages & fisheye_imgs_up
         img_track_count ++;
     }
 
-    printf("featureTracker time: AVG %f NOW %f inputImageCnt %d Bufsize %ld imgs buf Size %ld\n", 
-        sum_time/img_track_count, dt, inputImageCnt, featureBuf.size(), fisheye_imgs_upBuf_cuda.size());
+    if(ENABLE_PERF_OUTPUT) {
+        printf("featureTracker time: AVG %f NOW %f inputImageCnt %d Bufsize %ld imgs buf Size %ld\n", 
+            sum_time/img_track_count, dt, inputImageCnt, featureBuf.size(), fisheye_imgs_upBuf_cuda.size());
+    }
    
 }
 
@@ -137,20 +185,28 @@ double base = 0;
 
 void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity)
 {
+    double dt_device = t - ros::Time::now().toSec();
     mBuf.lock();
+
     accBuf.push(make_pair(t, linearAcceleration));
     gyrBuf.push(make_pair(t, angularVelocity));
 
-    fastPredictIMU(t, linearAcceleration, angularVelocity);
-    // if (solver_flag == NON_LINEAR && fast_prop_inited) {
     if (fast_prop_inited) {
-    //if (fast_prop_inited) {
-        if (solver_flag !=  NON_LINEAR) {
-            ROS_ERROR("Is not non linear!!!!");
-            exit(-1);
+        double dt = t - latest_time;
+        if (WARN_IMU_DURATION && (dt > (1.5/IMU_FREQ) || dt < (0.5/IMU_FREQ))) {
+            ROS_WARN("[inputIMU] IMU sample duration not stable %4.2fms. Check your IMU and system performance", dt*1000);
         }
+
+        fastPredictIMU(t, linearAcceleration, angularVelocity);
         pubLatestOdometry(latest_P, latest_Q, latest_V, t);
+
+        // static int count = 0;
+        // if (count++ % (int)(2*IMU_FREQ/IMAGE_FREQ) == 0) {
+        //     double imu_propagate_dt = t - (Headers[frame_count] + td);
+        //     printf("[inputIMU] IMU Propagate dt %4.1f ms Device dt %3.1fms", imu_propagate_dt*1000, dt_device*1000);
+        // }
     }
+
     mBuf.unlock();
 
 }
@@ -253,13 +309,11 @@ void Estimator::processDepthGeneration() {
                 mBuf.unlock();
             }
             //Use imu propaget for depth cloud, this is for realtime peformance;
-            if (USE_IMU) {
-                while(!IMUAvailable(t + td)) {
-                    printf("Depth wait for IMU ... \n");
-                    std::chrono::milliseconds dura(5);
-                    std::this_thread::sleep_for(dura);
-                }
-            } 
+            while(!IMUAvailable(t + td)) {
+                printf("Depth wait for IMU ... \n");
+                std::chrono::milliseconds dura(5);
+                std::this_thread::sleep_for(dura);
+            }
 
             TicToc tic;
             if (USE_GPU) {
@@ -308,7 +362,6 @@ void Estimator::processDepthGeneration() {
             header.stamp = ros::Time(t);
 
             TicToc tic_pub;
-            // pubFlattenImages(*this, header, _sync_last_P, Eigen::Quaterniond(_sync_last_R), fisheye_imgs_up, fisheye_imgs_down);
             ROS_INFO("Pub flatten images cost %fms", tic_pub.toc());
 
             fisheye_imgs_up.clear();
@@ -323,8 +376,6 @@ void Estimator::processDepthGeneration() {
 void Estimator::processMeasurements()
 {
 
-    static int mea_track_count = 0;
-    static double mea_sum_time = 0;
     while (1)
     {
         //printf("process measurments\n");
@@ -350,8 +401,8 @@ void Estimator::processMeasurements()
             mBuf.lock();
             if(USE_IMU) {
                 getIMUInterval(prevTime, curTime, accVector, gyrVector);
-                if (curTime - prevTime > 0.11 || accVector.size()/(curTime - prevTime ) < 350) {
-                    ROS_WARN("Long IMU dt %fms or wrong IMU rate %fms", curTime - prevTime, accVector.size()/(curTime - prevTime));
+                if (curTime - prevTime > 2.1/IMAGE_FREQ || accVector.size()/(curTime - prevTime ) < IMU_FREQ*0.8) {
+                    ROS_WARN("Long image dt %fms or wrong IMU rate %fhz", (curTime - prevTime)*1000, accVector.size()/(curTime - prevTime));
                 } 
             }
 
@@ -380,12 +431,11 @@ void Estimator::processMeasurements()
 
             printStatistics(*this, 0);
 
-            ROS_INFO("to print statitcs %fms", t_process.toc());
             std_msgs::Header header;
             header.frame_id = "world";
             header.stamp = ros::Time(feature.first);
 
-
+            pubIMUBias(latest_Ba, latest_Bg, header);
             //These cost 5ms, ~1/6 percent on manifold2
             pubOdometry(*this, header);
             pubKeyPoses(*this, header);
@@ -394,12 +444,13 @@ void Estimator::processMeasurements()
             pubKeyframe(*this);
             pubTF(*this, header);
 
-            ROS_INFO("to pubTF %fms", t_process.toc());
-            
             double dt = t_process.toc();
             mea_sum_time += dt;
             mea_track_count ++;
-            printf("process measurement time: AVG %f NOW %f\n", mea_sum_time/mea_track_count, dt );
+
+            if(ENABLE_PERF_OUTPUT) {
+                ROS_INFO("process measurement time: AVG %f NOW %f\n", mea_sum_time/mea_track_count, dt );
+            }
         }
 
         std::chrono::milliseconds dura(2);
@@ -604,7 +655,9 @@ void Estimator::processImage(const FeatureFrame &image, const double header)
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);
             TicToc t_ic;
             f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
-            ROS_INFO("Triangulation cost %fms..", t_ic.toc());
+            if (ENABLE_PERF_OUTPUT) {
+                ROS_INFO("Triangulation cost %3.1fms..", t_ic.toc());
+            }
             if (frame_count == WINDOW_SIZE)
             {
                 map<double, ImageFrame>::iterator frame_it;
@@ -670,7 +723,7 @@ void Estimator::processImage(const FeatureFrame &image, const double header)
         f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
         
         if(ENABLE_PERF_OUTPUT) {        
-            ROS_INFO("Triangulation cost %fms..", t_ic.toc());
+            ROS_INFO("Triangulation cost %3.1fms..", t_ic.toc());
         }
 
         optimization();
@@ -681,12 +734,12 @@ void Estimator::processImage(const FeatureFrame &image, const double header)
         
         set<int> removeIndex;
         outliersRejection(removeIndex);
-        ROS_INFO("Remove %ld outlier", removeIndex.size());
-        f_manager.removeOutlier(removeIndex);
-
-        if(ENABLE_PERF_OUTPUT) {
-            ROS_INFO("after removeOutlier cost %fms..", t_ic.toc());
+        if (ENABLE_PERF_OUTPUT) {
+            ROS_INFO("Remove %ld outlier", removeIndex.size());
         }
+        
+        f_manager.removeOutlier(removeIndex);
+        predictPtsInNextFrame();
         
         if(ENABLE_PERF_OUTPUT) {
             ROS_INFO("solver costs: %fms", t_solve.toc());
@@ -1015,7 +1068,7 @@ void Estimator::vector2double()
 
     auto deps = f_manager.getDepthVector();
     param_feature_id.clear();
-    ROS_INFO("Feature to solve num: %ld", deps.size());
+    // printf("Solve features: %ld;", deps.size());
     for (auto & it : deps) {
         // ROS_INFO("Feature %d invdepth %f feature index %d", it.first, it.second, param_feature_id.size());
         para_Feature[param_feature_id.size()][0] = it.second;
@@ -1330,17 +1383,20 @@ void Estimator::optimization()
     TicToc t_solver;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    //cout << summary.BriefReport() << endl;
-    // cout << summary.FullReport() << endl;
+    cout << summary.BriefReport() << endl;
+    // std::cout << summary.FullReport() << endl;
     static double sum_iterations = 0;
     static double sum_solve_time = 0;
     static int solve_count = 0;
     sum_iterations = sum_iterations + summary.iterations.size();
     sum_solve_time = sum_solve_time + summary.total_time_in_seconds;
     solve_count += 1;
-    ROS_INFO("AVG Iter %f time %fms Iterations : %d solver costs: %f \n", 
-        sum_iterations/solve_count, sum_solve_time*1000/solve_count,
-        static_cast<int>(summary.iterations.size()),  t_solver.toc());
+
+    if (ENABLE_PERF_OUTPUT) {
+        ROS_INFO("AVG Iter %f time %fms Iterations : %d solver costs: %f \n", 
+            sum_iterations/solve_count, sum_solve_time*1000/solve_count,
+            static_cast<int>(summary.iterations.size()),  t_solver.toc());
+    }
 
     double2vector();
     //printf("frame_count: %d \n", frame_count);
@@ -1434,11 +1490,12 @@ void Estimator::optimization()
 
         TicToc t_pre_margin;
         marginalization_info->preMarginalize();
-        ROS_INFO("pre marginalization %f ms", t_pre_margin.toc());
+
+        // ROS_INFO("pre marginalization %f ms", t_pre_margin.toc());
         
         TicToc t_margin;
         marginalization_info->marginalize();
-        ROS_INFO("marginalization %f ms", t_margin.toc());
+        // ROS_INFO("marginalization %f ms", t_margin.toc());
 
         std::unordered_map<long, double *> addr_shift;
         for (int i = 1; i <= WINDOW_SIZE; i++)
@@ -1680,6 +1737,7 @@ void Estimator::predictPtsInNextFrame()
     getPoseInWorldFrame(frame_count - 1, prevT);
     nextT = curT * (prevT.inverse() * curT);
     map<int, Eigen::Vector3d> predictPts;
+    map<int, Eigen::Vector3d> predictPts1;
 
     for (auto &_it : f_manager.feature)
     {
@@ -1696,13 +1754,14 @@ void Estimator::predictPtsInNextFrame()
                 Vector3d pts_w = Rs[firstIndex] * pts_j + Ps[firstIndex];
                 Vector3d pts_local = nextT.block<3, 3>(0, 0).transpose() * (pts_w - nextT.block<3, 1>(0, 3));
                 Vector3d pts_cam = ric[0].transpose() * (pts_local - tic[0]);
+                Vector3d pts_cam1 = ric[1].transpose() * (pts_local - tic[1]);
                 int ptsIndex = it_per_id.feature_id;
                 predictPts[ptsIndex] = pts_cam;
+                predictPts1[ptsIndex] = pts_cam1;
             }
         }
     }
-    featureTracker.setPrediction(predictPts);
-    //printf("estimator output %d predict pts\n",(int)predictPts.size());
+    featureTracker->setPrediction(predictPts, predictPts1);
 }
 
 double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
@@ -1711,18 +1770,7 @@ double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, 
 {
     Vector3d pts_w = Ri * (rici * (depth * uvi) + tici) + Pi;
     Vector3d pts_cj = ricj.transpose() * (Rj.transpose() * (pts_w - Pj) - ticj);
-
-    if (FISHEYE) {
-        //In Fisheye we use 3d unit sphere to represent point position
-        return (pts_cj.normalized() - uvj).norm();
-    } else {
-        Vector2d residual = (pts_cj / pts_cj.z()).head<2>() - uvj.head<2>();
-        double rx = residual.x();
-        double ry = residual.y();
-        return sqrt(rx * rx + ry * ry);
-    }
-
-    return 100000;
+    return (pts_cj.normalized() - uvj).norm();
 }
 
 void Estimator::outliersRejection(set<int> &removeIndex)
@@ -1737,8 +1785,8 @@ void Estimator::outliersRejection(set<int> &removeIndex)
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
         double depth = it_per_id.estimated_depth;
 
-        // Vector3d pts_w = Rs[imu_i] * (ric[it_per_id.main_cam] * (depth * pts_i) + tic[it_per_id.main_cam]) + Ps[imu_i];
-        // ROS_INFO("PT %d, STEREO %d w %f %f %f drone %f %f %f ptun %f %f %f, depth %f", 
+        Vector3d pts_w = Rs[imu_i] * (ric[it_per_id.main_cam] * (depth * pts_i) + tic[it_per_id.main_cam]) + Ps[imu_i];
+        // ROS_INFO("PT %d, STEREO %d w %3.2f %3.2f %3.2f drone %3.2f %3.2f %3.2f ptun %3.2f %3.2f %3.2f, depth %f", 
         //     it_per_id.feature_id,
         //     it_per_id.feature_per_frame.front().is_stereo, 
         //     pts_w.x(), pts_w.y(), pts_w.z(),
@@ -1749,14 +1797,18 @@ void Estimator::outliersRejection(set<int> &removeIndex)
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
+
             imu_j++;
                 
             if (imu_i != imu_j)
             {
                 Vector3d pts_j = it_per_frame.point;     
+
                 double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[it_per_id.main_cam], tic[it_per_id.main_cam], 
                                                     Rs[imu_j], Ps[imu_j], ric[it_per_id.main_cam], tic[it_per_id.main_cam],
                                                     depth, pts_i, pts_j);
+                // printf("ptun   %3.2f %3.2f %3.2f: %3.2f\n", pts_j.x(), pts_j.y(), pts_j.z(), tmp_error);
+                                                
                 err += tmp_error;
                 errCnt++;
                 //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
@@ -1766,6 +1818,7 @@ void Estimator::outliersRejection(set<int> &removeIndex)
             {
                 
                 Vector3d pts_j_right = it_per_frame.pointRight;
+
                 if(imu_i != imu_j)
                 {            
                     double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
@@ -1773,7 +1826,7 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                                                         depth, pts_i, pts_j_right);
                     err += tmp_error;
                     errCnt++;
-                    //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
+                    // printf("ptright %3.2f %3.2f %3.2f: %3.2f\n", pts_j_right.x(), pts_j_right.y(), pts_j_right.z(), tmp_error*FOCAL_LENGTH);
                 }
                 else
                 {
@@ -1782,11 +1835,14 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                                                         depth, pts_i, pts_j_right);
                     err += tmp_error;
                     errCnt++;
-                    //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
+                    // printf("ptright %3.2f %3.2f %3.2f: %3.2f\n", pts_j_right.x(), pts_j_right.y(), pts_j_right.z(), tmp_error*FOCAL_LENGTH);
                 }       
             }
         }
+
+        // printf("\n");
         double ave_err = err / errCnt;
+        //Looks we have some bugs on outlier rejection!
         if(ave_err * FOCAL_LENGTH > THRES_OUTLIER) {
             // ROS_INFO("Removing feature %d on cam %d...  error %f", it_per_id.feature_id, it_per_id.main_cam, ave_err * FOCAL_LENGTH);
             removeIndex.insert(it_per_id.feature_id);
@@ -1804,18 +1860,16 @@ void Estimator::fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Ei
     }
 
     double dt = t - latest_time;
-    if (dt > 0.03) {
-        ROS_ERROR("DT %4.2fms t %f lt %f", dt*1000, (t-base)*1000, (latest_time-base)*1000);
-        // exit(-1);
+    if (WARN_IMU_DURATION && dt > (1.5/IMU_FREQ)) {
+        ROS_ERROR("[FastPredictIMU] dt %4.1fms t %f lt %f", dt*1000, (t-base)*1000, (latest_time-base)*1000);
     }
 
     latest_time = t;
     
-    // ROS_INFO("fastpredic t %f %d", (t-base)*1000, flg);
-
     Eigen::Vector3d un_acc_0 = latest_Q * (latest_acc_0 - latest_Ba) - g;
     Eigen::Vector3d un_gyr = 0.5 * (latest_gyr_0 + angular_velocity) - latest_Bg;
     latest_Q = latest_Q * Utility::deltaQ(un_gyr * dt);
+    latest_Q.normalize();
     Eigen::Vector3d un_acc_1 = latest_Q * (linear_acceleration - latest_Ba) - g;
     Eigen::Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);
     latest_P = latest_P + dt * latest_V + 0.5 * dt * dt * un_acc;
@@ -1840,17 +1894,23 @@ void Estimator::updateLatestStates()
     latest_gyr_0 = gyr_0;
     queue<pair<double, Eigen::Vector3d>> tmp_accBuf = accBuf;
     queue<pair<double, Eigen::Vector3d>> tmp_gyrBuf = gyrBuf;
+
+    double re_propagate_dt = accBuf.back().first - latest_time;
+
+    if (re_propagate_dt > 3.0/IMAGE_FREQ) {
+        ROS_WARN("[updateLatestStates] Reprogate dt too high %4.1fms ", re_propagate_dt*1000);
+    }
+
     while(!tmp_accBuf.empty())
     {
         double t = tmp_accBuf.front().first;
         Eigen::Vector3d acc = tmp_accBuf.front().second;
         Eigen::Vector3d gyr = tmp_gyrBuf.front().second;
         double dt = t - latest_time;
-        if (dt > 0.03) {
-            ROS_ERROR("DTRE %4.2fms", dt*1000);
+        if (WARN_IMU_DURATION && dt > 1.5/IMU_FREQ) {
+            ROS_ERROR("[updateLatestStates]IMU sample duration too high %4.2fms. Check your IMU and system performance", dt*1000);
             // exit(-1);
         }
-        
         
         fastPredictIMU(t, acc, gyr);
         tmp_accBuf.pop();

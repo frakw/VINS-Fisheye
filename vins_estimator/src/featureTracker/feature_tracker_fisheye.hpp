@@ -243,31 +243,31 @@ void BaseFisheyeFeatureTracker<CvMat>::drawTrackFisheye(const cv::Mat & img_up,
     cv::resize(fisheye_up, fisheye_up, cv::Size(WIDTH, WIDTH));
     cv::resize(fisheye_down, fisheye_down, cv::Size(WIDTH, WIDTH));
     if (fisheye_up.channels() != 3) {
-        cv::cvtColor(fisheye_up,   fisheye_up,   CV_GRAY2BGR);
-        cv::cvtColor(fisheye_down, fisheye_down, CV_GRAY2BGR);
+        cv::cvtColor(fisheye_up,   fisheye_up,   cv::COLOR_GRAY2BGR);
+        cv::cvtColor(fisheye_down, fisheye_down, cv::COLOR_GRAY2BGR);
     }
 
     if (imUpTop.channels() != 3) {
         if (!imUpTop.empty()) {
-            cv::cvtColor(imUpTop, imUpTop, CV_GRAY2BGR);
+            cv::cvtColor(imUpTop, imUpTop, cv::COLOR_GRAY2BGR);
         }
     }
     
     if (imDownTop.channels() != 3) {
         if(!imDownTop.empty()) {
-            cv::cvtColor(imDownTop, imDownTop, CV_GRAY2BGR);
+            cv::cvtColor(imDownTop, imDownTop, cv::COLOR_GRAY2BGR);
         }
     }
     
     if(imUpSide.channels() != 3) {
         if(!imUpSide.empty()) {
-            cv::cvtColor(imUpSide, imUpSide, CV_GRAY2BGR);
+            cv::cvtColor(imUpSide, imUpSide, cv::COLOR_GRAY2BGR);
         }
     }
 
     if(imDownSide.channels() != 3) {
         if(!imDownSide.empty()) {
-            cv::cvtColor(imDownSide, imDownSide, CV_GRAY2BGR);
+            cv::cvtColor(imDownSide, imDownSide, cv::COLOR_GRAY2BGR);
         }
     }
 

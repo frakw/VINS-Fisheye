@@ -36,7 +36,7 @@ DepthCamManager::DepthCamManager(ros::NodeHandle & _nh, FisheyeUndist * _fisheye
     t_left = Eigen::Quaterniond(Eigen::AngleAxisd(-M_PI / 2, Eigen::Vector3d(1, 0, 0)));
     t_front = t_left * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
     t_right = t_front * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
-    t_rear = t_rear * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
+    t_rear = t_right * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
     t_down = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d(1, 0, 0)));
     t_rotate = Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 0, 1));
     // t_transpose = Eigen::AngleAxisd(0, Eigen::Vector3d(0, 0, 1));
@@ -214,7 +214,7 @@ void DepthCamManager::update_pcl_depth_from_image(ros::Time stamp, int direction
 
 void DepthCamManager::update_depth_image(int direction, cv::cuda::GpuMat _up_front, cv::cuda::GpuMat _down_front, 
     Eigen::Matrix3d ric1, Eigen::Matrix3d ric_depth) {
-#ifdef USE_CUDA
+#ifndef WITHOUT_CUDA
     cv::cuda::GpuMat  up_front, down_front;
     TicToc tic_resize;
     cv::cuda::resize(_up_front, up_front, cv::Size(), downsample_ratio, downsample_ratio);
@@ -229,8 +229,8 @@ void DepthCamManager::update_depth_image(int direction, cv::cuda::GpuMat _up_fro
     cv::Mat tmp;
     cv::Size size = up_front.size();
     if (_up_front.channels() == 3) {
-        cv::cvtColor(up_front, up_front, CV_BGR2GRAY);
-        cv::cvtColor(down_front, down_front, CV_BGR2GRAY);
+        cv::cvtColor(up_front, up_front, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(down_front, down_front, cv::COLOR_BGR2GRAY);
     }
 
 
@@ -281,7 +281,9 @@ void DepthCamManager::update_depth_image(int direction, cv::cuda::GpuMat _up_fro
 
 
     if (pub_cloud_all && RGB_DEPTH_CLOUD == 0) {
-        up_front.download(texture_imgs[direction]);
+        cv::cuda::GpuMat texture;
+        dep_est->remap_texture(up_front, texture);
+        texture.download(texture_imgs[direction]);
     }
 
 
@@ -312,8 +314,8 @@ void DepthCamManager::update_depth_image(int direction, cv::Mat _up_front, cv::M
     cv::Mat tmp;
     cv::Size size = up_front.size();
     if (_up_front.channels() == 3) {
-        cv::cvtColor(up_front, up_front, CV_BGR2GRAY);
-        cv::cvtColor(down_front, down_front, CV_BGR2GRAY);
+        cv::cvtColor(up_front, up_front, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(down_front, down_front, cv::COLOR_BGR2GRAY);
     }
 
 
@@ -429,7 +431,7 @@ void DepthCamManager::add_pts_point_cloud(const cv::Mat & pts3d, Eigen::Matrix3d
             double z = vec[2];
             Vector3d pts_i(x, y, z);
 
-            if (pts_i.norm() < depth_cloud_radius) {
+            if (pts_i.norm() < depth_cloud_radius && pts_i.z() > min_z) {
                 Vector3d w_pts_i = R * pts_i + P;
                 // Vector3d w_pts_i = pts_i;
 
