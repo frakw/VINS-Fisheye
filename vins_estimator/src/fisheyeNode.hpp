@@ -17,6 +17,11 @@
 #include <message_filters/time_synchronizer.h>
 #include <sensor_msgs/CompressedImage.h>
 
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> imgSyncPolicy;
+
 class Estimator;
 class FisheyeUndist;
 class DepthCamManager;
@@ -90,9 +95,10 @@ class FisheyeFlattenHandler
 class VinsNodeBaseClass {
         message_filters::Subscriber<sensor_msgs::Image> * image_sub_l;
         message_filters::Subscriber<sensor_msgs::Image> * image_sub_r;
-        message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> * sync;
-
-        message_filters::Subscriber<sensor_msgs::CompressedImage> * comp_image_sub_l;
+	message_filters::Synchronizer<imgSyncPolicy>* sync;
+	//message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> * sync;
+        
+	message_filters::Subscriber<sensor_msgs::CompressedImage> * comp_image_sub_l;
         message_filters::Subscriber<sensor_msgs::CompressedImage> * comp_image_sub_r;
         message_filters::TimeSynchronizer<sensor_msgs::CompressedImage, sensor_msgs::CompressedImage> * comp_sync;
 

@@ -23,7 +23,7 @@ class ProjectionTwoFrameTwoCamFactor : public ceres::SizedCostFunction<2, 7, 7, 
   public:
     ProjectionTwoFrameTwoCamFactor(const Eigen::Vector3d &_pts_i, const Eigen::Vector3d &_pts_j,
     							   const Eigen::Vector3d &_velocity_i, const Eigen::Vector3d &_velocity_j,
-    				   			   const double _td_i, const double _td_j);
+    				   			   const double _td_i, const double _td_j,const double _row_i, const double _row_j);
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
     void check(double **parameters);
 
@@ -31,6 +31,7 @@ class ProjectionTwoFrameTwoCamFactor : public ceres::SizedCostFunction<2, 7, 7, 
     Eigen::Vector3d velocity_i, velocity_j;
     double td_i, td_j;
     Eigen::Matrix<double, 2, 3> tangent_base;
+    double row_i, row_j;
     static Eigen::Matrix2d sqrt_info;
     static double sum_t;
 };

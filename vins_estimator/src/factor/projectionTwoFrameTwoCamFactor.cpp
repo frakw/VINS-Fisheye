@@ -16,7 +16,7 @@ double ProjectionTwoFrameTwoCamFactor::sum_t;
 
 ProjectionTwoFrameTwoCamFactor::ProjectionTwoFrameTwoCamFactor(const Eigen::Vector3d &_pts_i, const Eigen::Vector3d &_pts_j,
                                                                const Eigen::Vector3d &_velocity_i, const Eigen::Vector3d &_velocity_j,
-                                                               const double _td_i, const double _td_j) : 
+                                                               const double _td_i, const double _td_j, const double _row_i, const double _row_j) : 
                                                                pts_i(_pts_i), pts_j(_pts_j), 
                                                                td_i(_td_i), td_j(_td_j)
 {
@@ -26,6 +26,8 @@ ProjectionTwoFrameTwoCamFactor::ProjectionTwoFrameTwoCamFactor(const Eigen::Vect
     velocity_j.x() = _velocity_j.x();
     velocity_j.y() = _velocity_j.y();
     velocity_j.z() = _velocity_j.z();
+    row_i = _row_i - ROW / 2;
+    row_j = _row_j - ROW / 2;
 
 #ifdef UNIT_SPHERE_ERROR
     Eigen::Vector3d b1, b2;
@@ -60,8 +62,10 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
     double td = parameters[5][0];
 
     Eigen::Vector3d pts_i_td, pts_j_td;
-    pts_i_td = pts_i - (td - td_i) * velocity_i;
-    pts_j_td = pts_j - (td - td_j) * velocity_j;
+    pts_i_td = pts_i - (td - td_i + ROLLING_SHUTTER_TR / ROW * row_i) * velocity_i;
+    pts_j_td = pts_j - (td - td_j + ROLLING_SHUTTER_TR / ROW * row_j) * velocity_j;
+    //pts_i_td = pts_i - (td - td_i) * velocity_i;
+    //pts_j_td = pts_j - (td - td_j) * velocity_j;
 
     Eigen::Vector3d pts_camera_i = pts_i_td / inv_dep_i;
     Eigen::Vector3d pts_imu_i = qic * pts_camera_i + tic;
@@ -212,8 +216,10 @@ void ProjectionTwoFrameTwoCamFactor::check(double **parameters)
     double td = parameters[5][0];
 
     Eigen::Vector3d pts_i_td, pts_j_td;
-    pts_i_td = pts_i - (td - td_i) * velocity_i;
-    pts_j_td = pts_j - (td - td_j) * velocity_j;
+    pts_i_td = pts_i - (td - td_i + ROLLING_SHUTTER_TR / ROW * row_i) * velocity_i;
+    pts_j_td = pts_j - (td - td_j + ROLLING_SHUTTER_TR / ROW * row_j) * velocity_j;
+    //pts_i_td = pts_i - (td - td_i) * velocity_i;
+    //pts_j_td = pts_j - (td - td_j) * velocity_j;
 
     Eigen::Vector3d pts_camera_i = pts_i_td / inv_dep_i;
     Eigen::Vector3d pts_imu_i = qic * pts_camera_i + tic;
@@ -282,8 +288,10 @@ void ProjectionTwoFrameTwoCamFactor::check(double **parameters)
         }
 
         Eigen::Vector3d pts_i_td, pts_j_td;
-        pts_i_td = pts_i - (td - td_i) * velocity_i;
-        pts_j_td = pts_j - (td - td_j) * velocity_j;
+        pts_i_td = pts_i - (td - td_i + ROLLING_SHUTTER_TR / ROW * row_i) * velocity_i;
+        pts_j_td = pts_j - (td - td_j + ROLLING_SHUTTER_TR / ROW * row_i) * velocity_j;
+        //pts_i_td = pts_i - (td - td_i) * velocity_i;
+        //pts_j_td = pts_j - (td - td_j) * velocity_j;
 
         Eigen::Vector3d pts_camera_i = pts_i_td / inv_dep_i;
         Eigen::Vector3d pts_imu_i = qic * pts_camera_i + tic;

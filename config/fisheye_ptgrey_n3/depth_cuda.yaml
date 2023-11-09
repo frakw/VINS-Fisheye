@@ -4,7 +4,7 @@
 enable_front: 1
 enable_left: 1
 enable_right: 1
-enable_rear: 1
+enable_rear: 0
 downsample_ratio: 1.0
 use_vworks: 0
 min_disparity: 1

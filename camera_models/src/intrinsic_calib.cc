@@ -103,6 +103,10 @@ main( int argc, char** argv )
     {
         modelType = camodocal::Camera::SCARAMUZZA;
     }
+    else if ( boost::iequals( cameraModel, "myfisheye" ) )
+    {
+        modelType = camodocal::Camera::POLYFISHEYE;
+    }
     else
     {
         std::cerr << "# ERROR: Unknown camera model: " << cameraModel << std::endl;
@@ -126,6 +130,8 @@ main( int argc, char** argv )
         case camodocal::Camera::SCARAMUZZA:
             std::cout << "# INFO: Camera model: Scaramuzza-Omnidirect" << std::endl;
             break;
+	default:
+	    break;
     }
 
     // look for images in input directory

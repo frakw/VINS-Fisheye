@@ -81,7 +81,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_up_imgs_cuda) {
                 cv::cuda::GpuMat gray;
                 if(!img.empty()) {
-                    cv::cuda::cvtColor(img, gray, CV_BGR2GRAY);
+                    cv::cuda::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
                 }
                 fisheye_up_imgs_cuda_gray.push_back(gray);
             }
@@ -89,7 +89,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_down_imgs_cuda) {
                 cv::cuda::GpuMat gray;
                 if(!img.empty()) {
-                    cv::cuda::cvtColor(img, gray, CV_BGR2GRAY);
+                    cv::cuda::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
                 }
 
                 fisheye_down_imgs_cuda_gray.push_back(gray);
@@ -121,7 +121,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_up_imgs) {
                 cv::Mat gray;
                 if(!img.empty()) {
-                    cv::cvtColor(img, gray, CV_BGR2GRAY);
+                    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
                 }
                 fisheye_up_imgs_gray.push_back(gray);
             }
@@ -129,7 +129,7 @@ void FisheyeFlattenHandler::imgs_callback(double t, const cv::Mat & img1, const 
             for (auto & img: fisheye_down_imgs) {
                 cv::Mat gray;
                 if(!img.empty()) {
-                    cv::cvtColor(img, gray, CV_BGR2GRAY);
+                    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
                 }
                 fisheye_down_imgs_gray.push_back(gray);
             }
@@ -360,7 +360,7 @@ void FisheyeFlattenHandler::readIntrinsicParameter(const vector<string> &calib_f
     {
         if (FISHEYE) {
             ROS_INFO("Flatten read fisheye %s, id %ld", calib_file[i].c_str(), i);
-            FisheyeUndist un(calib_file[i].c_str(), i, FISHEYE_FOV, true, WIDTH);
+            FisheyeUndist un(calib_file[i].c_str(), i, FISHEYE_FOV_H, FISHEYE_FOV_V, true, WIDTH);
             FOCAL_LENGTH = un.f_side;
             fisheys_undists.push_back(un);
         }
@@ -554,8 +554,9 @@ void VinsNodeBaseClass::Init(ros::NodeHandle & n)
         ROS_INFO("Will directly receive compressed images %s and %s", COMP_IMAGE0_TOPIC.c_str(), COMP_IMAGE1_TOPIC.c_str());
         comp_image_sub_l = new message_filters::Subscriber<sensor_msgs::CompressedImage> (n, COMP_IMAGE0_TOPIC, 1000, ros::TransportHints().tcpNoDelay(true));
         comp_image_sub_r = new message_filters::Subscriber<sensor_msgs::CompressedImage> (n, COMP_IMAGE1_TOPIC, 1000, ros::TransportHints().tcpNoDelay(true));
-        comp_sync = new message_filters::TimeSynchronizer<sensor_msgs::CompressedImage, sensor_msgs::CompressedImage> (*comp_image_sub_l, *comp_image_sub_r, 1000);
-        if (FISHEYE) {
+        sync = new  message_filters::Synchronizer<imgSyncPolicy>(imgSyncPolicy(1000), *image_sub_l, *image_sub_r);
+	//sync = new message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> (*image_sub_l, *image_sub_r, 1000);
+	if (FISHEYE) {
             comp_sync->registerCallback(boost::bind(&VinsNodeBaseClass::fisheye_comp_imgs_callback, (VinsNodeBaseClass*)this, _1, _2));
         } else {    
             comp_sync->registerCallback(boost::bind(&VinsNodeBaseClass::comp_imgs_callback, (VinsNodeBaseClass*)this, _1, _2));
@@ -564,7 +565,7 @@ void VinsNodeBaseClass::Init(ros::NodeHandle & n)
         ROS_INFO("Will directly receive raw images %s and %s", IMAGE0_TOPIC.c_str(), IMAGE1_TOPIC.c_str());
         image_sub_l = new message_filters::Subscriber<sensor_msgs::Image> (n, IMAGE0_TOPIC, 1000, ros::TransportHints().tcpNoDelay(true));
         image_sub_r = new message_filters::Subscriber<sensor_msgs::Image> (n, IMAGE1_TOPIC, 1000, ros::TransportHints().tcpNoDelay(true));
-        sync = new message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> (*image_sub_l, *image_sub_r, 1000);
+        sync = new message_filters::Synchronizer<imgSyncPolicy> (imgSyncPolicy(1000), *image_sub_l, *image_sub_r);
         if (FISHEYE) {
             sync->registerCallback(boost::bind(&VinsNodeBaseClass::fisheye_imgs_callback, (VinsNodeBaseClass*)this, _1, _2));
         } else {    

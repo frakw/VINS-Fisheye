@@ -1,5 +1,11 @@
 #include "feature_tracker.h"
 #include "fisheye_undist.hpp"
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+
 
 using namespace std;
 
@@ -19,6 +25,11 @@ public:
             t1(Eigen::AngleAxisd(-M_PI / 2, Eigen::Vector3d(1, 0, 0))),
             t_down(Eigen::AngleAxisd(M_PI, Eigen::Vector3d(1, 0, 0)))
     {
+	
+	ros::NodeHandle nh;
+	image_transport::ImageTransport it(nh);
+	pubTrackImage = it.advertise("/trackImage",1);
+
         t2 = t1 * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
         t3 = t2 * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
         t4 = t3 * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
@@ -85,6 +96,7 @@ protected:
     Eigen::Quaterniond t4;
     Eigen::Quaterniond t_down;
 
+    image_transport::Publisher pubTrackImage;
 };
 
 class FisheyeFeatureTrackerCuda: public BaseFisheyeFeatureTracker<cv::cuda::GpuMat> {
@@ -243,31 +255,31 @@ void BaseFisheyeFeatureTracker<CvMat>::drawTrackFisheye(const cv::Mat & img_up,
     cv::resize(fisheye_up, fisheye_up, cv::Size(WIDTH, WIDTH));
     cv::resize(fisheye_down, fisheye_down, cv::Size(WIDTH, WIDTH));
     if (fisheye_up.channels() != 3) {
-        cv::cvtColor(fisheye_up,   fisheye_up,   CV_GRAY2BGR);
-        cv::cvtColor(fisheye_down, fisheye_down, CV_GRAY2BGR);
+        cv::cvtColor(fisheye_up,   fisheye_up,   cv::COLOR_GRAY2BGR);
+        cv::cvtColor(fisheye_down, fisheye_down, cv::COLOR_GRAY2BGR);
     }
 
     if (imUpTop.channels() != 3) {
         if (!imUpTop.empty()) {
-            cv::cvtColor(imUpTop, imUpTop, CV_GRAY2BGR);
+            cv::cvtColor(imUpTop, imUpTop, cv::COLOR_GRAY2BGR);
         }
     }
     
     if (imDownTop.channels() != 3) {
         if(!imDownTop.empty()) {
-            cv::cvtColor(imDownTop, imDownTop, CV_GRAY2BGR);
+            cv::cvtColor(imDownTop, imDownTop, cv::COLOR_GRAY2BGR);
         }
     }
     
     if(imUpSide.channels() != 3) {
         if(!imUpSide.empty()) {
-            cv::cvtColor(imUpSide, imUpSide, CV_GRAY2BGR);
+            cv::cvtColor(imUpSide, imUpSide, cv::COLOR_GRAY2BGR);
         }
     }
 
     if(imDownSide.channels() != 3) {
         if(!imDownSide.empty()) {
-            cv::cvtColor(imDownSide, imDownSide, CV_GRAY2BGR);
+            cv::cvtColor(imDownSide, imDownSide, cv::COLOR_GRAY2BGR);
         }
     }
 
@@ -318,8 +330,12 @@ void BaseFisheyeFeatureTracker<CvMat>::drawTrackFisheye(const cv::Mat & img_up,
     
     double fx = ((double)SHOW_WIDTH) / ((double) imUpSide.size().width);
     cv::resize(imTrack, imTrack, cv::Size(), fx, fx);
-    cv::imshow("tracking", imTrack);
-    cv::waitKey(2);
+    //ROS_INFO("\ntrack_image:%d\n",(int)imTrack.empty());
+    //cv::imshow("tracking", imTrack);
+    //cv::waitKey(2);
+
+    sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", imTrack).toImageMsg();
+    pubTrackImage.publish(*msg);
 }
 
 
@@ -334,7 +350,7 @@ void BaseFisheyeFeatureTracker<CvMat>::readIntrinsicParameter(const vector<strin
         m_camera.push_back(camera);
 
         ROS_INFO("Use as fisheye %s", calib_file[i].c_str());
-        FisheyeUndist un(calib_file[i].c_str(), i, FISHEYE_FOV, true, WIDTH);
+        FisheyeUndist un(calib_file[i].c_str(), i, FISHEYE_FOV_H, FISHEYE_FOV_V, true, WIDTH);
         fisheys_undists.push_back(un);
 
     }

@@ -53,7 +53,7 @@ struct StereoCostFunctor {
         Eigen::Matrix<T, 3, 3, Eigen::RowMajor> E_eig = Eigen::Map <Eigen::Matrix <T, 3, 3, Eigen::RowMajor>> (E);
         // std::cerr << E_eig << std::endl;
 
-        for (int i = 0; i < left_pts.size(); i++) {
+        for (size_t i = 0; i < left_pts.size(); i++) {
             Eigen::Matrix<T, 1, 1, Eigen::RowMajor> ret = right_pts[i].transpose()*E_eig*left_pts[i]*100.0;
             residual[i] = ret(0, 0);
         }
@@ -299,7 +299,7 @@ void StereoOnlineCalib::filter_points_by_region(std::vector<cv::Point2f> & good_
 
 }
 
-#ifdef USE_CUDA
+#ifndef WITHOUT_CUDA
 bool StereoOnlineCalib::calibrate_extrincic(cv::cuda::GpuMat & left, cv::cuda::GpuMat & right) {
 
     std::vector<cv::Point2f> Pts1;
@@ -324,7 +324,7 @@ bool StereoOnlineCalib::calibrate_extrincic(cv::cuda::GpuMat & left, cv::cuda::G
     filter_points_by_region(good_left, good_right);
     cv::Mat _show;
     left.download(_show);
-    cv::cvtColor(_show, _show, CV_GRAY2BGR);
+    cv::cvtColor(_show, _show, cv::COLOR_GRAY2BGR);
 
     std::map<int, cv::Scalar> region_colors;
     
