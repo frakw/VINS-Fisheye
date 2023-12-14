@@ -107,7 +107,13 @@ void Estimator::inputFisheyeImage(double t, const CvImages & fisheye_imgs_up,
     FeatureFrame featureFrame;
     TicToc featureTrackerTime;
 
+    auto beg = std::chrono::high_resolution_clock::now();
     featureFrame = featureTracker->trackImage(t, fisheye_imgs_up, fisheye_imgs_down);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+    std_msgs::Int64 calc_time;
+    calc_time.data = duration.count(); 
+    trackImageTime_pub.publish(calc_time);
 
     if(inputImageCnt % 2 == 0)
     {
@@ -152,7 +158,13 @@ void Estimator::inputFisheyeImage(double t, const CvCudaImages & fisheye_imgs_up
             trackImage_blank_init(t, fisheye_imgs_up_cuda, fisheye_imgs_down_cuda);
             return;
     } else {
+        auto beg = std::chrono::high_resolution_clock::now();
         featureFrame = featureTracker->trackImage(t, fisheye_imgs_up_cuda, fisheye_imgs_down_cuda);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+        std_msgs::Int64 calc_time;
+        calc_time.data = duration.count();
+        trackImageTime_pub.publish(calc_time);
     }
 
     if(inputImageCnt % 2 == 0)
@@ -288,6 +300,7 @@ void Estimator::processDepthGeneration() {
 
     while(ros::ok()) {
         if (!fisheye_imgs_upBuf.empty() || !fisheye_imgs_upBuf_cuda.empty()) {
+            auto beg = std::chrono::high_resolution_clock::now();
             double t = fisheye_imgs_stampBuf.front();
             if (USE_GPU) {
                 fisheye_imgs_up_cuda = fisheye_imgs_upBuf_cuda.front();
@@ -366,6 +379,12 @@ void Estimator::processDepthGeneration() {
 
             fisheye_imgs_up.clear();
             fisheye_imgs_down.clear();
+
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg);
+            std_msgs::Int64 calc_time;
+            calc_time.data = duration.count();
+            depthGenerationTime_pub.publish(calc_time);
         } else {
             std::chrono::milliseconds dura(5);
             std::this_thread::sleep_for(dura);

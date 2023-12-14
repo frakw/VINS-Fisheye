@@ -227,6 +227,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    ROS_INFO("rosNodeTest.cpp");
+
     string config_file = argv[1];
     printf("config_file: %s\n", argv[1]);
 

@@ -13,12 +13,15 @@
 #include <mutex>
 #include <std_msgs/Header.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Float64.h>
+#include <std_msgs/Int64.h>
 #include <ceres/ceres.h>
 #include <unordered_map>
 #include <queue>
 #include <opencv2/core/eigen.hpp>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
+#include <chrono>
 
 #include "parameters.h"
 #include "feature_manager.h"
@@ -37,6 +40,7 @@
 #include "../featureTracker/feature_tracker.h"
 #include "../utility/opencv_cuda.h"
 
+#include <ros/ros.h>
 
 class DepthCamManager;
 
@@ -200,5 +204,9 @@ class Estimator
     queue<std::vector<cv::Mat>> fisheye_imgs_upBuf;
     queue<std::vector<cv::Mat>> fisheye_imgs_downBuf;
     queue<std::pair<double, EigenPose>> odometry_buf;
+
+
+    ros::Publisher trackImageTime_pub;
+    ros::Publisher depthGenerationTime_pub;
 
 };

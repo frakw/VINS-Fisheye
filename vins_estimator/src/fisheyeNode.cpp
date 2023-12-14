@@ -500,6 +500,9 @@ void VinsNodeBaseClass::restart_callback(const std_msgs::BoolConstPtr &restart_m
 
 void VinsNodeBaseClass::Init(ros::NodeHandle & n)
 {
+    estimator.trackImageTime_pub = n.advertise<std_msgs::Int64>("/vins_estimator/trackImageTime", 1);
+    estimator.depthGenerationTime_pub = n.advertise<std_msgs::Int64>("/vins_estimator/depthGenerationTime", 1);
+    //estimator.n = &n;
     std::string config_file;
     n.getParam("config_file", config_file);
     
